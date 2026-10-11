@@ -1,0 +1,6 @@
+{
+  "name": "Roulette Master Pro - Analyzer & Tracker",
+  "description": "Professional responsive Roulette Analyzer with interactive table grid, wheel visualizer, real-time statistics, sleeping dozens/columns tracking, and history analytics for PC, Tablet, and Mobile.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
