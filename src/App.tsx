@@ -1,233 +1,115 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { SpinRecord, TabType } from './types/roulette';
-import { calculateLiveStats, createSpinRecord } from './utils/rouletteAnalytics';
-import {
-  loadSessionFromStorage,
-  saveSessionToStorage,
-  loadLastRng,
-  saveLastRng,
-  hasSeenDisclaimer,
-  markDisclaimerSeen,
-} from './utils/storage';
-import { TopBar } from './components/TopBar';
-import { FrozenHistoryBar } from './components/FrozenHistoryBar';
-import { RouletteGrid } from './components/RouletteGrid';
-import { UndoClearBar } from './components/UndoClearBar';
-import { LiveStats } from './components/LiveStats';
-import { NeighboursTab } from './components/NeighboursTab';
+import React, { useState, useEffect } from 'react';
+import { useHistory } from './hooks/useHistory';
+import { Header } from './components/Header';
+import { TabBar } from './components/TabBar';
+import { HistoryStrip } from './components/HistoryStrip';
+import { ActionButtons } from './components/ActionButtons';
+import { HomeTab } from './components/HomeTab';
 import { PatternsTab } from './components/PatternsTab';
-import { RngTab } from './components/RngTab';
-import { ChartsTab } from './components/ChartsTab';
-import { HistoryTab } from './components/HistoryTab';
-import { SettingsTab } from './components/SettingsTab';
-import { BottomNav } from './components/BottomNav';
-import { DisclaimerModal } from './components/DisclaimerModal';
+import { TrendsTab } from './components/TrendsTab';
+import { getColorLabel } from './engine/colorMapper';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<TabType>('home');
-  const [spins, setSpins] = useState<SpinRecord[]>([]);
-  const [lastRng, setLastRng] = useState<number | null>(null);
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
-  const [language, setLanguage] = useState<'en' | 'hi'>('en');
-  const [showDisclaimer, setShowDisclaimer] = useState<boolean>(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const {
+    spins,
+    activeTab,
+    isListening,
+    voiceError,
+    setActiveTab,
+    addSpin,
+    undoLast,
+    resetHistory,
+    removeSpin,
+    toggleVoice,
+  } = useHistory();
 
-  // Initialize data on mount
-  useEffect(() => {
-    const savedSpins = loadSessionFromStorage();
-    if (savedSpins && savedSpins.length > 0) {
-      setSpins(savedSpins);
-    }
-    const savedRng = loadLastRng();
-    if (savedRng !== null) {
-      setLastRng(savedRng);
-    }
+  const [toast, setToast] = useState<{ message: string; id: number } | null>(null);
 
-    // Check disclaimer
-    if (!hasSeenDisclaimer()) {
-      setShowDisclaimer(true);
-    }
-  }, []);
-
-  // Save spins to storage on update
-  useEffect(() => {
-    saveSessionToStorage(spins);
-  }, [spins]);
-
-  // Live analytics
-  const liveStats = useMemo(() => {
-    return calculateLiveStats(spins);
-  }, [spins]);
-
-  // Add spin to history
-  const handleSelectNumber = useCallback((val: number) => {
-    setSpins((prev) => {
-      const nextSpinNumber = prev.length + 1;
-      const record = createSpinRecord(val, nextSpinNumber);
-      return [...prev, record];
+  const handleAddSpinWithToast = (num: number) => {
+    addSpin(num);
+    const color = num === 0 ? 'Zero' : getColorLabel(num === 0 ? 'G' : [1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36].includes(num) ? 'R' : 'B');
+    setToast({
+      message: `Logged #${num} (${color})`,
+      id: Date.now(),
     });
-  }, []);
-
-  // Undo last spin
-  const handleUndo = useCallback(() => {
-    setSpins((prev) => {
-      if (prev.length === 0) return prev;
-      return prev.slice(0, prev.length - 1);
-    });
-  }, []);
-
-  // Clear all spins
-  const handleClearAll = useCallback(() => {
-    setSpins([]);
-    saveSessionToStorage([]);
-  }, []);
-
-  // Delete single spin from history tab
-  const handleDeleteSingle = useCallback((id: string) => {
-    setSpins((prev) => {
-      const filtered = prev.filter((s) => s.id !== id);
-      return filtered.map((s, idx) => ({ ...s, spinNumber: idx + 1 }));
-    });
-  }, []);
-
-  // RNG generation - DOES NOT add to history, only updates Last RNG
-  const handleSpinRng = useCallback((num: number) => {
-    setLastRng(num);
-    saveLastRng(num);
-  }, []);
-
-  // Toast helper
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
     setTimeout(() => {
-      setToastMessage(null);
-    }, 2500);
+      setToast((prev) => (prev?.id === toast?.id ? null : prev));
+    }, 1800);
   };
 
-  // Share functionality
-  const handleShare = () => {
-    if (navigator.share) {
-      navigator
-        .share({
-          title: 'Roulette Master Pro',
-          text: 'Check out this European Roulette Analyzer & Pattern Tracker!',
-          url: window.location.href,
-        })
-        .catch(() => {});
-    } else {
-      navigator.clipboard.writeText(window.location.href);
-      showToast('App link copied to clipboard!');
-    }
-  };
-
-  // Reset all app data
-  const handleResetAppData = () => {
-    setSpins([]);
-    setLastRng(null);
-    saveSessionToStorage([]);
-    saveLastRng(null);
-    showToast('App data reset successfully!');
-  };
-
-  // Close disclaimer modal
-  const handleCloseDisclaimer = () => {
-    markDisclaimerSeen();
-    setShowDisclaimer(false);
-  };
+  // Keyboard shortcut listener (Ctrl+Z to Undo)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        undoLast();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undoLast]);
 
   return (
-    <div
-      className={`min-h-screen flex flex-col font-sans selection:bg-amber-500 selection:text-black ${
-        isDarkMode ? 'bg-[#0a0a0e] text-slate-100' : 'bg-slate-100 text-slate-900'
-      }`}
-    >
-      {/* 1. TOP BAR */}
-      <TopBar
-        onOpenSettings={() => setActiveTab('settings')}
-        isDarkMode={isDarkMode}
-        onToggleTheme={() => setIsDarkMode(!isDarkMode)}
-        onShare={handleShare}
-        lastRng={lastRng}
+    <div className="min-h-screen bg-gray-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-black">
+      {/* Background radial glow */}
+      <div className="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-gradient-to-b from-amber-500/10 via-amber-700/5 to-transparent blur-3xl rounded-full" />
+        <div className="absolute bottom-0 right-0 w-[400px] h-[300px] bg-cyan-500/5 blur-3xl rounded-full" />
+      </div>
+
+      {/* 1. Header (Always Visible) */}
+      <Header
+        isListening={isListening}
+        onToggleVoice={toggleVoice}
+        voiceError={voiceError}
       />
 
-      {/* 2. FROZEN HISTORY BAR (Always sticky right below top bar) */}
-      <FrozenHistoryBar spins={spins} />
+      {/* 2. Tab Bar (3 Tabs, Always Visible) */}
+      <TabBar activeTab={activeTab} onSelectTab={setActiveTab} />
 
-      {/* 3. MAIN CONTENT CONTAINER */}
-      <main className="flex-1 max-w-4xl w-full mx-auto p-3 sm:p-5 pb-24 space-y-4">
-        {/* HOME TAB: Exactly as ordered in user brief */}
+      {/* 3. History Strip (Always Visible, Sticky, RTL) */}
+      <HistoryStrip spins={spins} onRemoveSpin={removeSpin} />
+
+      {/* 4. Action Buttons (Undo, Reset, Voice, Always Visible) */}
+      <ActionButtons
+        canUndo={spins.length > 0}
+        onUndo={undoLast}
+        onReset={resetHistory}
+        isListening={isListening}
+        onToggleVoice={toggleVoice}
+      />
+
+      {/* 5. Main Content Area */}
+      <main className="flex-1 max-w-xl w-full mx-auto p-3 sm:p-4 pb-16 space-y-4">
+        {/* Tab 1: HOME */}
         {activeTab === 'home' && (
-          <div className="space-y-4">
-            {/* ROULETTE GRID (0-36) */}
-            <RouletteGrid onSelectNumber={handleSelectNumber} />
-
-            {/* UNDO & CLEAR ALL BUTTONS */}
-            <UndoClearBar
-              onUndo={handleUndo}
-              onClearAll={handleClearAll}
-              canUndo={spins.length > 0}
-            />
-
-            {/* LIVE STATISTICS */}
-            <LiveStats stats={liveStats} />
-          </div>
-        )}
-
-        {/* NEIGHBOURS TAB */}
-        {activeTab === 'neighbours' && (
-          <NeighboursTab onSelectNumber={handleSelectNumber} />
-        )}
-
-        {/* CHARTS TAB */}
-        {activeTab === 'charts' && (
-          <ChartsTab spins={spins} stats={liveStats} />
-        )}
-
-        {/* HISTORY TAB */}
-        {activeTab === 'history' && (
-          <HistoryTab
+          <HomeTab
             spins={spins}
-            onClearAll={handleClearAll}
-            onDeleteSingle={handleDeleteSingle}
+            onSelectNumber={handleAddSpinWithToast}
           />
         )}
 
-        {/* PATTERNS TAB */}
+        {/* Tab 2: PATTERNS */}
         {activeTab === 'patterns' && (
-          <PatternsTab spins={spins} onSelectNumber={handleSelectNumber} />
-        )}
-
-        {/* RNG TAB */}
-        {activeTab === 'rng' && (
-          <RngTab lastRng={lastRng} onSpinRng={handleSpinRng} />
-        )}
-
-        {/* SETTINGS TAB */}
-        {activeTab === 'settings' && (
-          <SettingsTab
-            isDarkMode={isDarkMode}
-            onToggleTheme={() => setIsDarkMode(!isDarkMode)}
-            language={language}
-            onToggleLanguage={() => setLanguage(language === 'en' ? 'hi' : 'en')}
+          <PatternsTab
             spins={spins}
-            onClearHistory={handleClearAll}
-            onResetAppData={handleResetAppData}
-            onShare={handleShare}
-            onOpenDisclaimer={() => setShowDisclaimer(true)}
+            onSelectNumber={handleAddSpinWithToast}
+          />
+        )}
+
+        {/* Tab 3: TRENDS */}
+        {activeTab === 'trends' && (
+          <TrendsTab
+            spins={spins}
+            onSelectNumber={handleAddSpinWithToast}
           />
         )}
       </main>
 
-      {/* BOTTOM NAVIGATION (7 items: Home, Neighbours, Charts, History, Patterns, RNG, Settings) */}
-      <BottomNav activeTab={activeTab} onChangeTab={(t) => setActiveTab(t)} />
-
-      {/* RESPONSIBLE GAMING DISCLAIMER MODAL */}
-      <DisclaimerModal isOpen={showDisclaimer} onClose={handleCloseDisclaimer} />
-
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-amber-500 text-slate-950 font-black text-xs px-4 py-2 rounded-xl shadow-2xl animate-in fade-in duration-150">
-          {toastMessage}
+      {/* Floating Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-amber-500 text-gray-950 font-black text-xs px-4 py-2 rounded-2xl shadow-2xl shadow-amber-500/40 border border-amber-300 animate-in fade-in zoom-in-95 duration-150">
+          {toast.message}
         </div>
       )}
     </div>

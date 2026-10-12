@@ -1,503 +1,232 @@
-import React, { useState } from 'react';
-import { SpinRecord } from '../types/roulette';
-import { CATEGORIES, getNumberCategories, getNumberColor } from '../utils/constants';
-import { calculatePatterns, getPredictionsForLastNumber } from '../utils/patterns';
-import {
-  Layers,
-  ArrowRightLeft,
-  Boxes,
-  RotateCw,
-  Repeat,
-  Sparkles,
-  ChevronRight,
-  X,
-  Compass,
-} from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { SpinItem } from '../types';
+import { analyzePatterns } from '../engine/patterns';
+import { PatternBox } from './PatternBox';
+import { ChevronDown, ChevronUp, Layers, Sparkles } from 'lucide-react';
+import { getColor, getColorHex } from '../engine/colorMapper';
 
 interface PatternsTabProps {
-  spins: SpinRecord[];
+  spins: SpinItem[];
   onSelectNumber: (num: number) => void;
 }
 
 export const PatternsTab: React.FC<PatternsTabProps> = ({ spins, onSelectNumber }) => {
-  const [showComboModal, setShowComboModal] = useState<boolean>(false);
-  const [comboModalMode, setComboModalMode] = useState<'normal' | 'oneCut'>('normal');
+  const [showComboDetails, setShowComboDetails] = useState(false);
+  const [showTripalDetails, setShowTripalDetails] = useState(false);
 
-  const historyLength = spins.length;
-  const lastSpin = spins.length > 0 ? spins[spins.length - 1] : null;
-  const lastNum = lastSpin ? lastSpin.value : null;
+  const patternData = useMemo(() => {
+    return analyzePatterns(spins);
+  }, [spins]);
 
-  const lastCategories = lastNum !== null ? getNumberCategories(lastNum) : [];
-  const lastColor = lastNum !== null ? getNumberColor(lastNum) : null;
-  const lastColorEmoji = lastColor === 'red' ? '🔴 RED' : lastColor === 'black' ? '⚫ BLACK' : '🟢 GREEN';
-
-  const patternData = calculatePatterns(spins);
-  const predictions = getPredictionsForLastNumber(lastNum);
-
-  // Helper to compute percentage = (count / historyLength) * 100
-  const getPercent = (count: number) => {
-    if (historyLength === 0) return 0;
-    return Math.min(100, (count / historyLength) * 100);
-  };
+  const totalSpins = spins.length;
 
   return (
     <div className="space-y-4">
-      {/* Top Banner: Last Number & Category Indicator */}
-      <div className="bg-[#10121a] rounded-2xl border border-amber-900/40 p-3.5 sm:p-4 shadow-xl">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-black uppercase tracking-wider text-[#D4AF37]">
-              Current Active State:
-            </span>
-            {lastNum !== null ? (
-              <span className="text-xs font-bold text-slate-100">
-                Last Number: <strong className="text-amber-400 font-black">#{lastNum}</strong> | Category:{' '}
-                <strong className="text-amber-300 font-bold">
-                  {lastCategories.map((c) => `Cat ${c}`).join(', ')}
-                </strong>{' '}
-                | Color: <span className="font-bold">{lastColorEmoji}</span>
-              </span>
-            ) : (
-              <span className="text-xs text-slate-500 italic">No spins logged yet</span>
-            )}
-          </div>
-
-          <div className="text-[11px] text-slate-400 font-medium">
-            History: {historyLength} spins
-          </div>
+      {/* Header Info */}
+      <div className="bg-gray-900/80 backdrop-blur-md rounded-2xl border border-gray-800/90 p-3.5 shadow-xl flex items-center justify-between">
+        <div>
+          <h2 className="text-xs sm:text-sm font-black uppercase tracking-wider text-amber-400">
+            6 Inside Pattern Monitors
+          </h2>
+          <p className="text-[11px] text-gray-400">
+            Consecutive category differences & combinatorial progressions
+          </p>
+        </div>
+        <div className="text-right">
+          <span className="text-[10px] text-gray-500 uppercase font-bold block">Spins</span>
+          <span className="text-sm font-black text-amber-300">{totalSpins}</span>
         </div>
       </div>
 
-      {/* Category Legend (All 5 Categories) */}
-      <div className="bg-[#10121a] rounded-2xl border border-amber-900/40 p-3.5 shadow-xl">
-        <span className="text-xs font-black uppercase tracking-wider text-[#D4AF37] block mb-2.5">
-          Category Legend (Cat 1 - Cat 5)
-        </span>
-        <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
-          {([1, 2, 3, 4, 5] as const).map((cat) => {
-            const nums = CATEGORIES[cat];
-            const isLastInThis = lastCategories.includes(cat);
-            return (
+      {/* 6 Inside Pattern Boxes Grid: Mobile 2 cols, Tablet 2 cols, Desktop 3 cols */}
+      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
+        {/* Box 1: 🔵 Sequence (Blue) */}
+        <PatternBox
+          title="Sequence"
+          icon="🔵"
+          count={patternData.sequence}
+          totalSpins={totalSpins}
+          colorName="blue"
+          description="2 consecutive numbers with consecutive categories (diff 1 or 4)"
+        />
+
+        {/* Box 2: ✂️ One Cut Sequence (Cyan) */}
+        <PatternBox
+          title="1-Cut Seq"
+          icon="✂️"
+          count={patternData.oneCutSequence}
+          totalSpins={totalSpins}
+          colorName="cyan"
+          description="Numbers at i & i+2 with consecutive categories"
+        />
+
+        {/* Box 3: 🎯 Combo (Green) */}
+        <PatternBox
+          title="Combo"
+          icon="🎯"
+          count={patternData.combo}
+          totalSpins={totalSpins}
+          colorName="green"
+          description="Direct 8-combo match between adjacent spins"
+          onClick={() => setShowComboDetails(!showComboDetails)}
+          hasDetails
+        />
+
+        {/* Box 4: ✂️ One Cut Combo (Yellow) */}
+        <PatternBox
+          title="1-Cut Combo"
+          icon="✂️"
+          count={patternData.oneCutCombo}
+          totalSpins={totalSpins}
+          colorName="yellow"
+          description="Same 8 combos with 1 gap in between"
+          onClick={() => setShowComboDetails(!showComboDetails)}
+          hasDetails
+        />
+
+        {/* Box 5: 🔁 Repeating (Purple) */}
+        <PatternBox
+          title="Repeating"
+          icon="🔁"
+          count={patternData.repeating}
+          totalSpins={totalSpins}
+          colorName="purple"
+          description="2+ consecutive numbers with identical category"
+        />
+
+        {/* Box 6: ✂️ One Cut Repeating (Pink) */}
+        <PatternBox
+          title="1-Cut Repeat"
+          icon="✂️"
+          count={patternData.oneCutRepeating}
+          totalSpins={totalSpins}
+          colorName="pink"
+          description="Identical category repeating with 1 gap"
+        />
+      </div>
+
+      {/* Collapsible Section 1: Combo Details (8 Combos) */}
+      <div className="bg-gray-900/80 backdrop-blur-md rounded-2xl border border-gray-800/90 overflow-hidden shadow-xl">
+        <button
+          onClick={() => setShowComboDetails(!showComboDetails)}
+          className="w-full p-3.5 flex items-center justify-between text-left hover:bg-gray-800/50 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <Layers className="w-4 h-4 text-emerald-400" />
+            <div>
+              <h3 className="text-xs font-black uppercase tracking-wider text-emerald-400">
+                Combo Details (8 Combos Breakdown)
+              </h3>
+              <p className="text-[10px] text-gray-400">
+                Individual hit counts for all 8 predefined combos
+              </p>
+            </div>
+          </div>
+          {showComboDetails ? (
+            <ChevronUp className="w-4 h-4 text-gray-400" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-gray-400" />
+          )}
+        </button>
+
+        {showComboDetails && (
+          <div className="p-3 pt-0 border-t border-gray-800/80 grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+            {patternData.combos.map((cb) => (
               <div
-                key={cat}
-                className={`p-2.5 rounded-xl border text-xs transition-colors ${
-                  isLastInThis
-                    ? 'bg-amber-950/40 border-amber-500 ring-1 ring-amber-400/50'
-                    : 'bg-[#161822] border-slate-800'
-                }`}
+                key={cb.id}
+                className="bg-gray-950/70 p-2.5 rounded-xl border border-gray-800"
               >
                 <div className="flex items-center justify-between mb-1">
-                  <span className="font-black text-amber-300">Cat {cat}</span>
-                  {isLastInThis && (
-                    <span className="text-[9px] bg-amber-500 text-black px-1.5 py-0.2 rounded font-black">
-                      ACTIVE
-                    </span>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-1 text-[11px] text-slate-300 font-semibold">
-                  {nums.map((n) => (
-                    <span
-                      key={n}
-                      className={lastNum === n ? 'text-amber-300 underline font-black' : ''}
-                    >
-                      {n}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* PREDICTION SECTION (Based on Last Number) */}
-      <div className="bg-[#10121a] rounded-2xl border border-amber-900/40 p-3.5 sm:p-4 shadow-xl space-y-3">
-        <div className="flex items-center gap-2 pb-2 border-b border-slate-800">
-          <Sparkles className="w-4 h-4 text-amber-400" />
-          <h3 className="text-xs font-black uppercase tracking-wider text-[#D4AF37]">
-            Predictions Engine (Based on Last Spin #{lastNum ?? '—'})
-          </h3>
-        </div>
-
-        {/* Next Sequence Predictions (Right & Left) */}
-        <div>
-          <span className="text-xs font-bold text-slate-300 block mb-2">
-            Next Sequence Predictions:
-          </span>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {/* RIGHT: Cat +1 */}
-            <div className="bg-[#161822] p-3 rounded-xl border border-blue-900/40">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs font-bold text-blue-400">
-                  RIGHT (+1 Cycle): Cat {predictions.rightCat}
-                </span>
-                <span className="text-[10px] text-slate-500">Tap number to log</span>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {predictions.rightNumbers.map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => onSelectNumber(n)}
-                    style={{ backgroundColor: getNumberColor(n) === 'red' ? '#E53935' : getNumberColor(n) === 'green' ? '#4CAF50' : '#212121' }}
-                    className="w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs text-white border border-white/20 hover:scale-110 active:scale-95 transition-transform"
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* LEFT: Cat -1 */}
-            <div className="bg-[#161822] p-3 rounded-xl border border-cyan-900/40">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs font-bold text-cyan-400">
-                  LEFT (-1 Cycle): Cat {predictions.leftCat}
-                </span>
-                <span className="text-[10px] text-slate-500">Tap number to log</span>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {predictions.leftNumbers.map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => onSelectNumber(n)}
-                    style={{ backgroundColor: getNumberColor(n) === 'red' ? '#E53935' : getNumberColor(n) === 'green' ? '#4CAF50' : '#212121' }}
-                    className="w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs text-white border border-white/20 hover:scale-110 active:scale-95 transition-transform"
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Next Combos activated by Last Number */}
-        <div>
-          <span className="text-xs font-bold text-slate-300 block mb-2">
-            Active Combo Triggers:
-          </span>
-          {predictions.activeCombos.length === 0 ? (
-            <div className="text-xs text-slate-500 italic bg-[#161822] p-2.5 rounded-xl border border-slate-800">
-              Koi active combo trigger nahi hai is number ke sath.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {predictions.activeCombos.map((ac, idx) => (
-                <div key={idx} className="bg-[#161822] p-2.5 rounded-xl border border-emerald-900/40">
-                  <span className="text-xs font-bold text-emerald-400 block mb-1">
-                    {ac.name}
+                  <span className="text-xs font-black text-amber-300">
+                    {cb.id}. {cb.name}
                   </span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {ac.numbers.map((n) => (
+                  <div className="flex items-center gap-1.5 text-xs font-black">
+                    <span className="text-emerald-400" title="Direct Hits">
+                      {cb.count}x
+                    </span>
+                    <span className="text-gray-500">·</span>
+                    <span className="text-yellow-400" title="1-Cut Hits">
+                      {cb.oneCutCount} cut
+                    </span>
+                  </div>
+                </div>
+                <p className="text-[10px] text-gray-400 mb-1.5 leading-tight">
+                  {cb.desc}
+                </p>
+                <div className="flex items-center gap-1 flex-wrap">
+                  <span className="text-[9px] text-gray-500 font-bold uppercase">Targets:</span>
+                  {cb.targets.map((num) => {
+                    const c = getColor(num);
+                    const bg = getColorHex(c);
+                    return (
                       <button
-                        key={n}
+                        key={num}
                         type="button"
-                        onClick={() => onSelectNumber(n)}
-                        style={{ backgroundColor: getNumberColor(n) === 'red' ? '#E53935' : getNumberColor(n) === 'green' ? '#4CAF50' : '#212121' }}
-                        className="w-6 h-6 rounded-full flex items-center justify-center font-bold text-[11px] text-white border border-white/20 hover:scale-110 active:scale-95 transition-transform"
+                        onClick={() => onSelectNumber(num)}
+                        style={{ backgroundColor: bg }}
+                        className="w-5 h-5 rounded-full flex items-center justify-center font-bold text-[9px] text-white border border-white/20 hover:scale-110 active:scale-95 transition-transform"
                       >
-                        {n}
+                        {num}
                       </button>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
-              ))}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Collapsible Section 2: Tripal Details (4 Tripals) */}
+      <div className="bg-gray-900/80 backdrop-blur-md rounded-2xl border border-gray-800/90 overflow-hidden shadow-xl">
+        <button
+          onClick={() => setShowTripalDetails(!showTripalDetails)}
+          className="w-full p-3.5 flex items-center justify-between text-left hover:bg-gray-800/50 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-purple-400" />
+            <div>
+              <h3 className="text-xs font-black uppercase tracking-wider text-purple-400">
+                Tripal Details (4 Tripals Breakdown)
+              </h3>
+              <p className="text-[10px] text-gray-400">
+                3-spin combinatorial sequences & triplet cycles
+              </p>
             </div>
+          </div>
+          {showTripalDetails ? (
+            <ChevronUp className="w-4 h-4 text-gray-400" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-gray-400" />
           )}
-        </div>
-      </div>
+        </button>
 
-      {/* 6 INSIDE PATTERN BOXES (2 x 3 Grid) */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-black uppercase tracking-wider text-[#D4AF37]">
-            Inside Patterns Monitor (2 × 3 Grid)
-          </span>
-          <span className="text-[11px] text-slate-400">
-            Tap Combos for 8-Combo Breakdown
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {/* 1. SEQUENCE (Blue #3b82f6) */}
-          <div className="bg-[#10121a] p-3.5 rounded-2xl border border-blue-500/40 shadow-xl flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-                <span className="text-xs font-black uppercase tracking-wider text-blue-400">
-                  Sequence
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400 mb-2">
-                Consecutive categories (diff 1 or 4)
-              </p>
-            </div>
-
-            <div>
-              <div className="flex items-baseline justify-between mb-1">
-                <span className="text-xl font-black text-white">
-                  {patternData.sequenceCount} <span className="text-xs font-semibold text-slate-400">baar</span>
-                </span>
-                <span className="text-xs font-bold text-blue-400">
-                  {getPercent(patternData.sequenceCount).toFixed(1)}%
-                </span>
-              </div>
-              <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden">
-                <div
-                  style={{ width: `${getPercent(patternData.sequenceCount)}%` }}
-                  className="bg-[#3b82f6] h-full rounded-full transition-all"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* 2. ONE CUT SEQUENCE (Cyan #06b6d4) */}
-          <div className="bg-[#10121a] p-3.5 rounded-2xl border border-cyan-500/40 shadow-xl flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-cyan-500" />
-                <span className="text-xs font-black uppercase tracking-wider text-cyan-400">
-                  One Cut Sequence
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400 mb-2">
-                Consecutive with 1 gap in between
-              </p>
-            </div>
-
-            <div>
-              <div className="flex items-baseline justify-between mb-1">
-                <span className="text-xl font-black text-white">
-                  {patternData.oneCutSequenceCount} <span className="text-xs font-semibold text-slate-400">baar</span>
-                </span>
-                <span className="text-xs font-bold text-cyan-400">
-                  {getPercent(patternData.oneCutSequenceCount).toFixed(1)}%
-                </span>
-              </div>
-              <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden">
-                <div
-                  style={{ width: `${getPercent(patternData.oneCutSequenceCount)}%` }}
-                  className="bg-[#06b6d4] h-full rounded-full transition-all"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* 3. COMBO (Green #22c55e) - TAP TO EXPAND */}
-          <div
-            onClick={() => {
-              setComboModalMode('normal');
-              setShowComboModal(true);
-            }}
-            className="bg-[#10121a] p-3.5 rounded-2xl border border-emerald-500/40 shadow-xl flex flex-col justify-between cursor-pointer hover:border-emerald-400 transition-colors group"
-          >
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                  <span className="text-xs font-black uppercase tracking-wider text-emerald-400">
-                    Combo (8 Combos)
+        {showTripalDetails && (
+          <div className="p-3 pt-0 border-t border-gray-800/80 grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+            {patternData.tripals.map((tp) => (
+              <div
+                key={tp.id}
+                className="bg-gray-950/70 p-2.5 rounded-xl border border-gray-800 flex items-center justify-between"
+              >
+                <div>
+                  <span className="text-xs font-black text-purple-300 block mb-0.5">
+                    {tp.name}
+                  </span>
+                  <span className="text-[10px] text-gray-400 leading-tight block">
+                    {tp.desc}
                   </span>
                 </div>
-                <ChevronRight className="w-4 h-4 text-emerald-400 group-hover:translate-x-1 transition-transform" />
-              </div>
-              <p className="text-[11px] text-slate-400 mb-2">
-                Adjacent combo match. (Tap for 8 combo details)
-              </p>
-            </div>
-
-            <div>
-              <div className="flex items-baseline justify-between mb-1">
-                <span className="text-xl font-black text-white">
-                  {patternData.comboCount} <span className="text-xs font-semibold text-slate-400">baar</span>
-                </span>
-                <span className="text-xs font-bold text-emerald-400">
-                  {getPercent(patternData.comboCount).toFixed(1)}%
-                </span>
-              </div>
-              <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden">
-                <div
-                  style={{ width: `${getPercent(patternData.comboCount)}%` }}
-                  className="bg-[#22c55e] h-full rounded-full transition-all"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* 4. ONE CUT COMBO (Yellow #eab308) - TAP TO EXPAND */}
-          <div
-            onClick={() => {
-              setComboModalMode('oneCut');
-              setShowComboModal(true);
-            }}
-            className="bg-[#10121a] p-3.5 rounded-2xl border border-yellow-500/40 shadow-xl flex flex-col justify-between cursor-pointer hover:border-yellow-400 transition-colors group"
-          >
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full bg-yellow-500" />
-                  <span className="text-xs font-black uppercase tracking-wider text-yellow-400">
-                    One Cut Combo
+                <div className="text-right pl-2">
+                  <span className="text-sm font-black text-amber-400">
+                    {tp.count}
                   </span>
+                  <span className="text-[10px] text-gray-500 block">times</span>
                 </div>
-                <ChevronRight className="w-4 h-4 text-yellow-400 group-hover:translate-x-1 transition-transform" />
               </div>
-              <p className="text-[11px] text-slate-400 mb-2">
-                Combos with 1 gap in between (Tap for details)
-              </p>
-            </div>
-
-            <div>
-              <div className="flex items-baseline justify-between mb-1">
-                <span className="text-xl font-black text-white">
-                  {patternData.oneCutComboCount} <span className="text-xs font-semibold text-slate-400">baar</span>
-                </span>
-                <span className="text-xs font-bold text-yellow-400">
-                  {getPercent(patternData.oneCutComboCount).toFixed(1)}%
-                </span>
-              </div>
-              <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden">
-                <div
-                  style={{ width: `${getPercent(patternData.oneCutComboCount)}%` }}
-                  className="bg-[#eab308] h-full rounded-full transition-all"
-                />
-              </div>
-            </div>
+            ))}
           </div>
-
-          {/* 5. REPEATING (Purple #a855f7) */}
-          <div className="bg-[#10121a] p-3.5 rounded-2xl border border-purple-500/40 shadow-xl flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-purple-500" />
-                <span className="text-xs font-black uppercase tracking-wider text-purple-400">
-                  Repeating
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400 mb-2">
-                Consecutive same category numbers
-              </p>
-            </div>
-
-            <div>
-              <div className="flex items-baseline justify-between mb-1">
-                <span className="text-xl font-black text-white">
-                  {patternData.repeatingCount} <span className="text-xs font-semibold text-slate-400">baar</span>
-                </span>
-                <span className="text-xs font-bold text-purple-400">
-                  {getPercent(patternData.repeatingCount).toFixed(1)}%
-                </span>
-              </div>
-              <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden">
-                <div
-                  style={{ width: `${getPercent(patternData.repeatingCount)}%` }}
-                  className="bg-[#a855f7] h-full rounded-full transition-all"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* 6. ONE CUT REPEATING (Pink #ec4899) */}
-          <div className="bg-[#10121a] p-3.5 rounded-2xl border border-pink-500/40 shadow-xl flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-pink-500" />
-                <span className="text-xs font-black uppercase tracking-wider text-pink-400">
-                  One Cut Repeating
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400 mb-2">
-                Same category repeating with 1 gap in between
-              </p>
-            </div>
-
-            <div>
-              <div className="flex items-baseline justify-between mb-1">
-                <span className="text-xl font-black text-white">
-                  {patternData.oneCutRepeatingCount} <span className="text-xs font-semibold text-slate-400">baar</span>
-                </span>
-                <span className="text-xs font-bold text-pink-400">
-                  {getPercent(patternData.oneCutRepeatingCount).toFixed(1)}%
-                </span>
-              </div>
-              <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden">
-                <div
-                  style={{ width: `${getPercent(patternData.oneCutRepeatingCount)}%` }}
-                  className="bg-[#ec4899] h-full rounded-full transition-all"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
+        )}
       </div>
-
-      {/* COMBO DETAILS EXPAND MODAL / BOTTOM SHEET */}
-      {showComboModal && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#141620] border border-amber-900/50 rounded-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto p-5 shadow-2xl">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
-              <div>
-                <h3 className="text-base font-black text-[#D4AF37]">
-                  {comboModalMode === 'normal' ? '8 Combos Breakdown' : 'One Cut 8 Combos Breakdown'}
-                </h3>
-                <span className="text-xs text-slate-400">
-                  Individual occurrence count for each predefined combo
-                </span>
-              </div>
-              <button
-                onClick={() => setShowComboModal(false)}
-                className="p-1.5 text-slate-400 hover:text-white rounded-lg bg-[#202330]"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              {patternData.combos.map((cb) => {
-                const count = comboModalMode === 'normal' ? cb.count : cb.oneCutCount;
-                return (
-                  <div key={cb.id} className="p-3 bg-[#181a26] rounded-xl border border-slate-800">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-black text-amber-300">
-                        {cb.id}. {cb.name}
-                      </span>
-                      <span className="text-xs font-black text-emerald-400">
-                        {count} baar
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-400 mb-2">
-                      {cb.description}
-                    </p>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[10px] text-slate-500 font-bold uppercase">Targets:</span>
-                      {cb.predictedNumbers.map((n) => (
-                        <span
-                          key={n}
-                          style={{ backgroundColor: getNumberColor(n) === 'red' ? '#E53935' : getNumberColor(n) === 'green' ? '#4CAF50' : '#212121' }}
-                          className="px-1.5 py-0.5 rounded text-[10px] font-bold text-white border border-white/20"
-                        >
-                          {n}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="mt-5 flex justify-end">
-              <button
-                onClick={() => setShowComboModal(false)}
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
