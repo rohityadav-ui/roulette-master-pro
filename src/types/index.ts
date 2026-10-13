@@ -69,3 +69,59 @@ export interface PredictionResult {
   topCategories: CategoryPredictionItem[];
   suggestedNumbers: number[];
 }
+
+// NEW TYPES FOR 7-SPIN PREDICTION & TRACKING
+export type HotTier = 'super-hot' | 'warm' | 'cold';
+
+export interface HotNumberItem {
+  number: number;
+  hits: number;
+  tier: HotTier;
+  percentage: number;
+  spinsAgo: number;
+}
+
+export interface HotNumbersAnalysis {
+  superHot: HotNumberItem[];
+  warm: HotNumberItem[];
+  cold: HotNumberItem[];
+  totalEvaluated: number;
+}
+
+export type HitStatus = 'direct' | 'nearby' | 'miss';
+
+export interface TrackingSpinRow {
+  spinIndex: number; // 1 to 7
+  value: number;
+  status: HitStatus;
+  distance: number; // 0 = direct, 1 or 2 = nearby, > 2 = miss
+  closestTarget: number | null;
+  timestamp: number;
+}
+
+export interface SevenSpinPredictionData {
+  windowId: number;
+  spinInWindow: number; // 1 to 7
+  totalWindowSpins: number; // 7
+  tier1High: number[]; // 🔴 3-4 numbers
+  tier2Medium: number[]; // 🟡 3-4 numbers
+  tier3Value: number[]; // 🟢 2-3 numbers
+  allSuggested: number[]; // 8-10 numbers
+  activeRows: TrackingSpinRow[];
+}
+
+export interface SessionAccuracyStats {
+  totalWindowsCompleted: number;
+  totalTrackedSpins: number;
+  directHits: number;
+  nearbyHits: number;
+  misses: number;
+  directAccuracy: number; // %
+  combinedAccuracy: number; // direct + nearby %
+  bestWindow: {
+    windowId: number;
+    directCount: number;
+    nearbyCount: number;
+    total: number;
+  } | null;
+}
