@@ -53,6 +53,12 @@ export interface PatternCounts {
   tripals: TripalItem[];
 }
 
+export interface DozenTargetResult {
+  safeDozens: number[];
+  dangerDozen: number;
+  reason: string;
+}
+
 export interface PredictionResult {
   dozenHint: {
     dozen: 1 | 2 | 3;
@@ -66,6 +72,7 @@ export interface PredictionResult {
     description: string;
     probability: number;
   };
+  dozenTarget?: DozenTargetResult;
   topCategories: CategoryPredictionItem[];
   suggestedNumbers: number[];
 }

@@ -1,6 +1,7 @@
 import { CategoryPredictionItem, PredictionResult, RouletteCategory, SpinItem } from '../types';
 import { CATEGORY_NUMBERS, getCategory, getColumn, getDozen } from './categories';
 import { COMBO_DEFINITIONS } from './patterns';
+import { calculateDozenTarget } from './dozenTarget';
 
 export function calculatePredictions(spins: SpinItem[]): PredictionResult {
   const lastSpin = spins.length > 0 ? spins[spins.length - 1] : null;
@@ -165,7 +166,10 @@ export function calculatePredictions(spins: SpinItem[]): PredictionResult {
     suggestedNumbers.push(26, 17, 11, 20);
   }
 
+  const dozenTarget = calculateDozenTarget(spins.map((s) => s.value));
+
   return {
+    dozenTarget,
     dozenHint: {
       dozen: bestDozen,
       title: dozenNames[bestDozen],

@@ -37,6 +37,18 @@ export default function App() {
     }, 1800);
   };
 
+  const [isPinned, setIsPinned] = useState<boolean>(() => {
+    return localStorage.getItem('roulette_layout_pinned') === 'true';
+  });
+
+  const handleTogglePin = () => {
+    setIsPinned((prev) => {
+      const next = !prev;
+      localStorage.setItem('roulette_layout_pinned', String(next));
+      return next;
+    });
+  };
+
   // Keyboard shortcut listener (Ctrl+Z to Undo)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -80,12 +92,18 @@ export default function App() {
       />
 
       {/* 5. Main Content Area */}
-      <main className="flex-1 max-w-xl w-full mx-auto p-3 sm:p-4 pb-16 space-y-4">
+      <main
+        className={`flex-1 w-full mx-auto p-3 sm:p-4 pb-16 space-y-4 transition-all duration-300 ${
+          isPinned && activeTab === 'home' ? 'max-w-xl md:max-w-5xl' : 'max-w-xl'
+        }`}
+      >
         {/* Tab 1: HOME */}
         {activeTab === 'home' && (
           <HomeTab
             spins={spins}
             onSelectNumber={handleAddSpinWithToast}
+            isPinned={isPinned}
+            onTogglePin={handleTogglePin}
           />
         )}
 
